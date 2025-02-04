@@ -7,9 +7,12 @@ import PySimpleGUI as sg
 def_path = r'C:\Program Files (x86)\Steam\steamapps\common\ZERO Sievert\ZS_vanilla\gamedata'
 path = ''
 
+
 def find_folder():
     return sg.popup_get_folder('Find your "weapon.json" and "w_mod.json" files folder. Then press "Execute" again.',
                                'Find your "weapon.json" and "w_mod.json" folder')
+
+
 def check_files(path):
     return os.path.isfile(path)
 
@@ -18,6 +21,7 @@ def open_json(path):
     global wep_df, wep_mod_df
     wep_df = pd.read_json(os.path.join(path, 'weapon.json'), typ='series')
     wep_mod_df = pd.read_json(os.path.join(path, 'w_mod.json'), typ='series')
+
 
 def export_json():
     # Экспорт в JSON файлов с изменениями
@@ -50,12 +54,13 @@ def change_names():
                                                                        wep_mod_df['data'][old_name]['basic']['name'])
     # замена ЕС (в модах)
     string = 'EC'
-    # Ищем ЕС (начало слова; в конце без букв, цифр и символов подчеркивания. Например ЕС-74 найдет, а ЕСМ нет)
+    # Ищем ЕС (начало слова; в конце без букв, цифр и символов подчеркивания. Например, ЕС-74 найдет, а ЕСМ нет)
     reg = r'\b' + string + r'\W'
     for old_name in wep_mod_df['data'].keys():
         if re.search(reg, wep_mod_df['data'][old_name]['basic']['name']):
             wep_mod_df['data'][old_name]['basic']['name'] = wep_mod_df['data'][old_name]['basic']['name'].replace('EC',
                                                                                                                   'AK')
+
 
 def add_mods_for_vintar():
     # Открываем JSON файлы с оружием и модами
@@ -68,13 +73,15 @@ def add_mods_for_vintar():
         except:
             pass
 
+
 def make_vintar_customizable():
     # Открываем JSON файлы с оружием и модами
     global wep_df, wep_mod_df
     # кастомизация vintar_bc
     wep_df['data']['vintar_bc']['weapon']['mods'] = wep_df['data']['as_val']['weapon']['mods']
-    # замена дефолтного спрайта vintar_bc на стандартный as_val. Иначе получается наложение спрайтов
+    # Замена дефолтного спрайта vintar_bc на стандартный as_val. Иначе получается наложение спрайтов
     wep_df['data']['vintar_bc']['basic']['sprite_inv'] = wep_df['data']['as_val']['basic']['sprite_inv']
+
 
 def update(path):
     # Смотрим какие опции выбраны
@@ -95,6 +102,14 @@ def update(path):
 
 
 def change():
+    if not check_files('w_mod_real.txt'):
+        window['-STAT_BAR-'].update('No file "w_mod_real.txt"', text_color='#FFFF00')
+        sg.popup_ok('No file "w_mod_real.txt" in app folder. Can`t continue.', title='No file')
+        return
+    if not check_files('weapon_real.txt'):
+        window['-STAT_BAR-'].update('No file "weapon_real.txt"', text_color='#FFFF00')
+        sg.popup_ok('No file "weapon_real.txt" in app folder. Can`t continue.', title='No file')
+        return
     global path
     if not path:
         # Проверка наличия файлов в папке игры по умолчанию (если путь path пуст)
@@ -102,7 +117,7 @@ def change():
             path = def_path
             window['-STAT_BAR-'].update('Files found', text_color='#c2ffa7')
             update(path)
-        else:   # Если не нашли файлы в каталоге по умолчанию, то запрашиваем у пользователя
+        else:  # Если не нашли файлы в каталоге по умолчанию, то запрашиваем у пользователя
             window['-STAT_BAR-'].update('Files not found', text_color='#FFFF00')
             path = find_folder()
     else:
@@ -110,7 +125,7 @@ def change():
         if check_files(os.path.join(path, 'w_mod.json')) and check_files(os.path.join(path, 'weapon.json')):
             window['-STAT_BAR-'].update('Files found', text_color='#c2ffa7')
             update(path)
-        else:   # Если не нашли файлы в каталоге по умолчанию, то запрашиваем у пользователя
+        else:  # Если не нашли файлы в каталоге по умолчанию, то запрашиваем у пользователя
             window['-STAT_BAR-'].update('Files not found', text_color='#FFFF00')
             path = find_folder()
 
@@ -121,7 +136,7 @@ def replace_files(path):
         os.rename(os.path.join(path, 'w_mod.json'), os.path.join(path, 'w_mod_ORIG.json'))
     except FileExistsError:
         sg.popup_ok('Files "weapon_ORIG.json" and "w_mod_ORIG.json" already exists in game folder. '
-                    'They will not be chaged' , title='Warning')
+                    'They will not be chaged', title='Warning')
     except:
         pass
 
@@ -182,12 +197,12 @@ Your Zero Sievert folder is:
 layout = [
     [sg.StatusBar('StatusBar : No info', k='-STAT_BAR-')],
     [sg.Column([[sg.Checkbox(rename_eng, default=True, k='-RENAME_CB-')],
-              [sg.Checkbox(all_vintar_eng, k='-ALLMODSVINTAR_CB-')],
+                [sg.Checkbox(all_vintar_eng, k='-ALLMODSVINTAR_CB-')],
                 [sg.HorizontalSeparator()],
                 [sg.Checkbox(replace_eng, default=True, k='-CHANGE_FILES-')]]),
-            sg.Multiline(def_text_eng, write_only=True, size=(80, 7), k='-TEXT_BOX-')],
+     sg.Multiline(def_text_eng, write_only=True, size=(80, 7), k='-TEXT_BOX-')],
     [sg.Button(exec_eng, k='-EXEC-'), sg.Exit(k='-EXIT-'), sg.Push(), sg.Button('Pyc'), sg.Button('Eng')]
-          ]
+]
 
 window = sg.Window('Weapon real names', layout)
 while True:
