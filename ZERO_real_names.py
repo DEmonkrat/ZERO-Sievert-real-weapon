@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import pandas as pd
 import PySimpleGUI as sg
 
@@ -12,10 +13,21 @@ def find_folder():
 def check_files(path):
     return os.path.isfile(path)
 
-def change_names(path):
-    # Открываем JSON файлы с оружием и модами
+
+def open_json(path):
+    global wep_df, wep_mod_df
     wep_df = pd.read_json(os.path.join(path, 'weapon.json'), typ='series')
     wep_mod_df = pd.read_json(os.path.join(path, 'w_mod.json'), typ='series')
+
+def export_json():
+    # Экспорт в JSON файлов с изменениями
+    wep_df.to_json('weapon.json', orient="index", indent=4)
+    wep_mod_df.to_json('w_mod.json', orient="index", indent=4)
+
+
+def change_names():
+    # Открываем JSON файлы с оружием и модами
+    global wep_df, wep_mod_df
     # Открываем файл weapon_real и w_mod_real.txt с рельаными названиями и делаем из них словари.
     # Для это необходимо в txt писать в виде словаря !!!
     with open('weapon_real.txt') as f:
@@ -44,14 +56,10 @@ def change_names(path):
         if re.search(reg, wep_mod_df['data'][old_name]['basic']['name']):
             wep_mod_df['data'][old_name]['basic']['name'] = wep_mod_df['data'][old_name]['basic']['name'].replace('EC',
                                                                                                                   'AK')
-    # Экспорт в JSON файлов с измененными названиями
-    wep_df.to_json('weapon.json', orient="index", indent=4)
-    wep_mod_df.to_json('w_mod.json', orient="index", indent=4)
-    window['-STAT_BAR-'].update('Done', text_color='#c2ffa7')
 
-def add_mods_for_vintar(path):
+def add_mods_for_vintar():
     # Открываем JSON файлы с оружием и модами
-    wep_mod_df = pd.read_json(os.path.join(path, 'w_mod.json'), typ='series')
+    global wep_df, wep_mod_df
     # добавляем моды для vintar_bc
     for old_name in wep_mod_df['data'].keys():
         try:
@@ -59,56 +67,95 @@ def add_mods_for_vintar(path):
                 wep_mod_df['data'][old_name]['weapon_mod']['weapon_id'].append('vintar_bc')
         except:
             pass
-    # Экспорт в JSON файлов с измененными названиями
-    wep_mod_df.to_json('w_mod.json', orient="index", indent=4)
-    window['-STAT_BAR-'].update('Done', text_color='#c2ffa7')
 
-def make_vintar_customizable(path):
+def make_vintar_customizable():
     # Открываем JSON файлы с оружием и модами
-    wep_df = pd.read_json(os.path.join(path, 'weapon.json'), typ='series')
+    global wep_df, wep_mod_df
     # кастомизация vintar_bc
     wep_df['data']['vintar_bc']['weapon']['mods'] = wep_df['data']['as_val']['weapon']['mods']
     # замена дефолтного спрайта vintar_bc на стандартный as_val. Иначе получается наложение спрайтов
     wep_df['data']['vintar_bc']['basic']['sprite_inv'] = wep_df['data']['as_val']['basic']['sprite_inv']
-    # Экспорт в JSON файлов с измененными названиями
-    wep_df.to_json('weapon.json', orient="index", indent=4)
-    window['-STAT_BAR-'].update('Done', text_color='#c2ffa7')
+
+def update(path):
+    # Смотрим какие опции выбраны
+    if values['-RENAME_CB-'] | values['-ALLMODSVINTAR_CB-']:
+        window['-STAT_BAR-'].update('Starting update', text_color='#c2ffa7')
+        open_json(path)
+        if values['-RENAME_CB-']:
+            change_names()
+        if values['-ALLMODSVINTAR_CB-']:
+            make_vintar_customizable()
+            add_mods_for_vintar()
+        export_json()
+        if values['-CHANGE_FILES-']:
+            replace_files(path)
+        window['-STAT_BAR-'].update('Done', text_color='#c2ffa7')
+    else:  # Если не выбрана ни одна опция, выдаем сообщение в статус
+        window['-STAT_BAR-'].update('No options to execute', text_color='#FFFF00')
+
 
 def change():
     global path
     if not path:
+        # Проверка наличия файлов в папке игры по умолчанию (если путь path пуст)
         if check_files(os.path.join(def_path, 'w_mod.json')) and check_files(os.path.join(def_path, 'weapon.json')):
+            path = def_path
             window['-STAT_BAR-'].update('Files found', text_color='#c2ffa7')
-        else:
+            update(path)
+        else:   # Если не нашли файлы в каталоге по умолчанию, то запрашиваем у пользователя
             window['-STAT_BAR-'].update('Files not found', text_color='#FFFF00')
             path = find_folder()
     else:
+        # Повторная проверка наличия файлов игры (имеется путь path)
         if check_files(os.path.join(path, 'w_mod.json')) and check_files(os.path.join(path, 'weapon.json')):
             window['-STAT_BAR-'].update('Files found', text_color='#c2ffa7')
-            if values['-RENAME_CB-']:
-                change_names(path)
-            if values['-MODS_CB-']:
-                add_mods_for_vintar(path)
-            if values['-ALLMODSVINTAR_CB-']:
-                make_vintar_customizable(path)
-        else:
+            update(path)
+        else:   # Если не нашли файлы в каталоге по умолчанию, то запрашиваем у пользователя
             window['-STAT_BAR-'].update('Files not found', text_color='#FFFF00')
             path = find_folder()
+
+
+def replace_files(path):
+    try:
+        os.rename(os.path.join(path, 'weapon.json'), os.path.join(path, 'weapon_ORIG.json'))
+        os.rename(os.path.join(path, 'w_mod.json'), os.path.join(path, 'w_mod_ORIG.json'))
+    except FileExistsError:
+        sg.popup_ok('Files "weapon_ORIG.json" and "w_mod_ORIG.json" already exists in game folder. '
+                    'They will not be chaged' , title='Warning')
+    except:
+        pass
+
+    try:
+        shutil.copyfile('weapon.json', os.path.join(path, 'weapon.json'))
+        shutil.copyfile('w_mod.json', os.path.join(path, 'w_mod.json'))
+    except:
+        sg.popup_ok(err_msg + path, title='Somethig went wrong.')
+    else:
+        sg.popup_ok(replace_msg, title='Done')
+
 
 def_text_ru = '''
 Эта программа предназначена замены названий оружия в ZeroSievert на реальные.\n
 Также она позволяет:
- - добавить моды для Vintar BC (по умолчанию можно ставить только магазин);
+ - добавить моды для Vintar BC (по умолчанию можно ставить только магазин и прицел);
  - сделать Vintar BC кастомизируемым (при этом происходит замена спрайта оружия т.к. иначе они накладываются друг на друга).
-Вся информация хранится в файлах weapon_real.txt и w_mod_real.txt (они должны находится в одной папке с исполняемым файлом)
+Вся информация хранится в файлах weapon_real.txt и w_mod_real.txt (они должны находится в одной папке с исполняемым файлом).
+В эту же папку будут помещены файлы JSON с новыми именами (если опция замены файлов включена, то и скопированы в папку с игрой).\n
+При появлении в игре нового ружия и модов можно добавить их в эти txt файлы по принципу 'что поменять' : 'на что поменять'.
+Ковычки и двоеточие обязательны !!! 
 '''
+
 def_text_eng = '''
 This program is designed to replace the names of weapons in Zero Sivert with real ones.\n
 It also allows you:
- - to add mods for Vintar BC (by default, you can only install a magazine).
+ - to add mods for Vintar BC (by default, you can only install a magazine and scope).
  - to make Vintar BC customizable (this replaces the weapon sprite, because otherwise they overlap each other)
-All information is stored in the files weapon_real.txt and w_mod_real.txt (they should be located in the same folder as the executable file)
+All information is stored in the files weapon_real.txt and w_mod_real.txt (they should be located in the same folder as the executable file).
+JSON files with new names will be placed in this folder (if the option to replace files is enabled, then they will be copied to the game folder).\n
+When a new weapon or mod appears in the game, you can add them to these files according to the principle 'what to change': 'what to change to'.
+Quotation marks and colons are required!!!
 '''
+
 rename_rus = 'Переименовать оружие и моды'
 rename_eng = 'Rename weapons and mods'
 mods_rus = 'Добавить моды для Vintar BC'
@@ -119,12 +166,25 @@ exec_rus = 'Выполнить'
 exec_eng = 'Execute'
 exit_rus = 'Выход'
 exit_eng = 'Exit'
+replace_rus = 'Заменить файлы в  игре'
+replace_eng = 'Change files in game'
+replace_msg = '''You have cheked "Change files in game" option.
+Original files will be renamed to "weapon_ORIG.json" and "w_mod_ORIG.json".
+New files will be copied to game directory, no actions needed.
+                Have fun !!!  
+'''
+err_msg = '''Somethig went wrong.
+You have to replace files "weapon.json" and "w_mod.json" menualy.
+Files with new names are in THIS program folder.\n
+Your Zero Sievert folder is: 
+'''
 
 layout = [
     [sg.StatusBar('StatusBar : No info', k='-STAT_BAR-')],
     [sg.Column([[sg.Checkbox(rename_eng, default=True, k='-RENAME_CB-')],
-              [sg.Checkbox(mods_eng, k='-MODS_CB-')],
-              [sg.Checkbox(all_vintar_eng, k='-ALLMODSVINTAR_CB-')]]),
+              [sg.Checkbox(all_vintar_eng, k='-ALLMODSVINTAR_CB-')],
+                [sg.HorizontalSeparator()],
+                [sg.Checkbox(replace_eng, default=True, k='-CHANGE_FILES-')]]),
             sg.Multiline(def_text_eng, write_only=True, size=(80, 7), k='-TEXT_BOX-')],
     [sg.Button(exec_eng, k='-EXEC-'), sg.Exit(k='-EXIT-'), sg.Push(), sg.Button('Pyc'), sg.Button('Eng')]
           ]
@@ -137,18 +197,18 @@ while True:
     if event == 'Eng':
         window['-TEXT_BOX-'].update(value=def_text_eng)
         window['-RENAME_CB-'].update(text=rename_eng)
-        window['-MODS_CB-'].update(text=mods_eng)
         window['-ALLMODSVINTAR_CB-'].update(text=all_vintar_eng)
         window['-EXEC-'].update(text=exec_eng)
         window['-EXIT-'].update(text=exit_eng)
+        window['-CHANGE_FILES-'].update(text=replace_eng)
         window.set_title('Weapon real names')
     if event == 'Pyc':
         window['-TEXT_BOX-'].update(value=def_text_ru)
         window['-RENAME_CB-'].update(text=rename_rus)
-        window['-MODS_CB-'].update(text=mods_rus)
         window['-ALLMODSVINTAR_CB-'].update(text=all_vintar_rus)
         window['-EXEC-'].update(text=exec_rus)
         window['-EXIT-'].update(text=exit_rus)
+        window['-CHANGE_FILES-'].update(text=replace_rus)
         window.set_title('Реальные названия оружия')
     if event == '-EXEC-':
         change()
