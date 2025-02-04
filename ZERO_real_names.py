@@ -1,38 +1,112 @@
 import os
+import re
+import pandas as pd
 import PySimpleGUI as sg
 
-def_path = r'D:\Program Files (x86)\Steam\steamapps\common\ZERO Sievert\ZS_vanilla\gamedata'
+def_path = r'C:\Program Files (x86)\Steam\steamapps\common\ZERO Sievert\ZS_vanilla\gamedata'
 path = ''
+
+def find_folder():
+    return sg.popup_get_folder('Find your "weapon.json" and "w_mod.json" files folder. Then press "Execute" again.',
+                               'Find your "weapon.json" and "w_mod.json" folder')
 def check_files(path):
     return os.path.isfile(path)
 
-def change_name():
+def change_names(path):
+    # Открываем JSON файлы с оружием и модами
+    wep_df = pd.read_json(os.path.join(path, 'weapon.json'), typ='series')
+    wep_mod_df = pd.read_json(os.path.join(path, 'w_mod.json'), typ='series')
+    # Открываем файл weapon_real и w_mod_real.txt с рельаными названиями и делаем из них словари.
+    # Для это необходимо в txt писать в виде словаря !!!
+    with open('weapon_real.txt') as f:
+        wep_rename = f.read()
+    wep_rename = eval(wep_rename.replace('\n', ''))
+    with open('w_mod_real.txt') as f:
+        wep_mod_rename = f.read()
+    wep_mod_rename = eval(wep_mod_rename.replace('\n', ''))
+    # Пробегаем по всему оружию в JSON и смотрим есть ли такие названия в txt. Если есть, то заменяем
+    # При этом ключом служит название оружия в игре !!! А значение уже реальное название
+    for old_name in wep_df['data'].keys():
+        if wep_df['data'][old_name]['basic']['name'] in wep_rename:
+            wep_df['data'][old_name]['basic']['name'] = wep_rename[wep_df['data'][old_name]['basic']['name']]
+    # замена названий в модах (всех кроме ЕС который АК)
+    for old_name in wep_mod_df['data'].keys():
+        for new_name in wep_mod_rename.keys():
+            reg = r'\b' + new_name + r'\s'
+            if re.search(reg, wep_mod_df['data'][old_name]['basic']['name']):
+                wep_mod_df['data'][old_name]['basic']['name'] = re.sub(reg, wep_mod_rename[new_name] + ' ',
+                                                                       wep_mod_df['data'][old_name]['basic']['name'])
+    # замена ЕС (в модах)
+    string = 'EC'
+    # Ищем ЕС (начало слова; в конце без букв, цифр и символов подчеркивания. Например ЕС-74 найдет, а ЕСМ нет)
+    reg = r'\b' + string + r'\W'
+    for old_name in wep_mod_df['data'].keys():
+        if re.search(reg, wep_mod_df['data'][old_name]['basic']['name']):
+            wep_mod_df['data'][old_name]['basic']['name'] = wep_mod_df['data'][old_name]['basic']['name'].replace('EC',
+                                                                                                                  'AK')
+    # Экспорт в JSON файлов с измененными названиями
+    wep_df.to_json('weapon.json', orient="index", indent=4)
+    wep_mod_df.to_json('w_mod.json', orient="index", indent=4)
+    window['-STAT_BAR-'].update('Done', text_color='#c2ffa7')
+
+def add_mods_for_vintar(path):
+    # Открываем JSON файлы с оружием и модами
+    wep_mod_df = pd.read_json(os.path.join(path, 'w_mod.json'), typ='series')
+    # добавляем моды для vintar_bc
+    for old_name in wep_mod_df['data'].keys():
+        try:
+            if 'as_val' in wep_mod_df['data'][old_name]['weapon_mod']['weapon_id']:
+                wep_mod_df['data'][old_name]['weapon_mod']['weapon_id'].append('vintar_bc')
+        except:
+            pass
+    # Экспорт в JSON файлов с измененными названиями
+    wep_mod_df.to_json('w_mod.json', orient="index", indent=4)
+    window['-STAT_BAR-'].update('Done', text_color='#c2ffa7')
+
+def make_vintar_customizable(path):
+    # Открываем JSON файлы с оружием и модами
+    wep_df = pd.read_json(os.path.join(path, 'weapon.json'), typ='series')
+    # кастомизация vintar_bc
+    wep_df['data']['vintar_bc']['weapon']['mods'] = wep_df['data']['as_val']['weapon']['mods']
+    # замена дефолтного спрайта vintar_bc на стандартный as_val. Иначе получается наложение спрайтов
+    wep_df['data']['vintar_bc']['basic']['sprite_inv'] = wep_df['data']['as_val']['basic']['sprite_inv']
+    # Экспорт в JSON файлов с измененными названиями
+    wep_df.to_json('weapon.json', orient="index", indent=4)
+    window['-STAT_BAR-'].update('Done', text_color='#c2ffa7')
+
+def change():
     global path
     if not path:
         if check_files(os.path.join(def_path, 'w_mod.json')) and check_files(os.path.join(def_path, 'weapon.json')):
             window['-STAT_BAR-'].update('Files found', text_color='#c2ffa7')
         else:
             window['-STAT_BAR-'].update('Files not found', text_color='#FFFF00')
-            path = sg.popup_get_folder('Find your weapon.json and w_mod.json files folder')
+            path = find_folder()
     else:
         if check_files(os.path.join(path, 'w_mod.json')) and check_files(os.path.join(path, 'weapon.json')):
             window['-STAT_BAR-'].update('Files found', text_color='#c2ffa7')
+            if values['-RENAME_CB-']:
+                change_names(path)
+            if values['-MODS_CB-']:
+                add_mods_for_vintar(path)
+            if values['-ALLMODSVINTAR_CB-']:
+                make_vintar_customizable(path)
         else:
             window['-STAT_BAR-'].update('Files not found', text_color='#FFFF00')
-            path = sg.popup_get_folder('Find your weapon.json and w_mod.json files folder')
+            path = find_folder()
 
 def_text_ru = '''
 Эта программа предназначена замены названий оружия в ZeroSievert на реальные.\n
 Также она позволяет:
  - добавить моды для Vintar BC (по умолчанию можно ставить только магазин);
- - сделать доступными все модификации для Vintar BC (при этом происходит замена спрайта оружия т.к. иначе они накладываются друг на друга).
+ - сделать Vintar BC кастомизируемым (при этом происходит замена спрайта оружия т.к. иначе они накладываются друг на друга).
 Вся информация хранится в файлах weapon_real.txt и w_mod_real.txt (они должны находится в одной папке с исполняемым файлом)
 '''
 def_text_eng = '''
 This program is designed to replace the names of weapons in Zero Sivert with real ones.\n
 It also allows you:
  - to add mods for Vintar BC (by default, you can only install a magazine).
- - to make all modifications available for Vintar BC (this replaces the weapon sprite, because otherwise they overlap each other)
+ - to make Vintar BC customizable (this replaces the weapon sprite, because otherwise they overlap each other)
 All information is stored in the files weapon_real.txt and w_mod_real.txt (they should be located in the same folder as the executable file)
 '''
 rename_rus = 'Переименовать оружие и моды'
@@ -77,6 +151,6 @@ while True:
         window['-EXIT-'].update(text=exit_rus)
         window.set_title('Реальные названия оружия')
     if event == '-EXEC-':
-        change_name()
+        change()
 
 window.close()
