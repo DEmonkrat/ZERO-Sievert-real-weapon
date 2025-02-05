@@ -8,6 +8,16 @@ def_path = r'C:\Program Files (x86)\Steam\steamapps\common\ZERO Sievert\ZS_vanil
 path = ''
 
 
+def status(text: str, text_color=None):
+    # При обновлении текста в StstusBar, если новая строка длиннее предыдущей, то
+    # она выводится не полностью
+    # Поэтому функция status заполняет ее пробелами
+    if text_color is not None:
+        window['-STAT_BAR-'].update(text + ' ' * (110 - len(text)), text_color=text_color)
+    else:
+        window['-STAT_BAR-'].update(text + ' ' * (110 - len(text)))
+
+
 def find_folder():
     return sg.popup_get_folder('Find your "weapon.json" and "w_mod.json" files folder. Then press "Execute" again.',
                                'Find your "weapon.json" and "w_mod.json" folder')
@@ -32,7 +42,7 @@ def export_json():
 def change_names():
     # Открываем JSON файлы с оружием и модами
     global wep_df, wep_mod_df
-    # Открываем файл weapon_real и w_mod_real.txt с рельаными названиями и делаем из них словари.
+    # Открываем файл weapon_real и w_mod_real.txt с реальными названиями и делаем из них словари.
     # Для это необходимо в txt писать в виде словаря !!!
     with open('weapon_real.txt') as f:
         wep_rename = f.read()
@@ -86,7 +96,7 @@ def make_vintar_customizable():
 def update(path):
     # Смотрим какие опции выбраны
     if values['-RENAME_CB-'] | values['-ALLMODSVINTAR_CB-']:
-        window['-STAT_BAR-'].update('Starting update', text_color='#c2ffa7')
+        status('Starting update', '#c2ffa7')
         open_json(path)
         if values['-RENAME_CB-']:
             change_names()
@@ -96,18 +106,18 @@ def update(path):
         export_json()
         if values['-CHANGE_FILES-']:
             replace_files(path)
-        window['-STAT_BAR-'].update('Done', text_color='#c2ffa7')
+        status('Done', '#c2ffa7')
     else:  # Если не выбрана ни одна опция, выдаем сообщение в статус
-        window['-STAT_BAR-'].update('No options to execute', text_color='#FFFF00')
+        status('No options to execute', '#FFFF00')
 
 
 def change():
     if not check_files('w_mod_real.txt'):
-        window['-STAT_BAR-'].update('No file "w_mod_real.txt"', text_color='#FFFF00')
+        status('No file w_mod_real.txt', text_color='#FFFF00')
         sg.popup_ok('No file "w_mod_real.txt" in app folder. Can`t continue.', title='No file')
         return
     if not check_files('weapon_real.txt'):
-        window['-STAT_BAR-'].update('No file "weapon_real.txt"', text_color='#FFFF00')
+        status('No file "weapon_real.txt"', text_color='#FFFF00')
         sg.popup_ok('No file "weapon_real.txt" in app folder. Can`t continue.', title='No file')
         return
     global path
@@ -115,18 +125,18 @@ def change():
         # Проверка наличия файлов в папке игры по умолчанию (если путь path пуст)
         if check_files(os.path.join(def_path, 'w_mod.json')) and check_files(os.path.join(def_path, 'weapon.json')):
             path = def_path
-            window['-STAT_BAR-'].update('Files found', text_color='#c2ffa7')
+            status('Files found', text_color='#c2ffa7')
             update(path)
         else:  # Если не нашли файлы в каталоге по умолчанию, то запрашиваем у пользователя
-            window['-STAT_BAR-'].update('Files not found', text_color='#FFFF00')
+            status('Files not found. Choose directory and click "Execute" again', text_color='#FFFF00')
             path = find_folder()
     else:
         # Повторная проверка наличия файлов игры (имеется путь path)
         if check_files(os.path.join(path, 'w_mod.json')) and check_files(os.path.join(path, 'weapon.json')):
-            window['-STAT_BAR-'].update('Files found', text_color='#c2ffa7')
+            status('Files found', text_color='#c2ffa7')
             update(path)
         else:  # Если не нашли файлы в каталоге по умолчанию, то запрашиваем у пользователя
-            window['-STAT_BAR-'].update('Files not found', text_color='#FFFF00')
+            status('Files not found. Choose directory and click "Execute" again', text_color='#FFFF00')
             path = find_folder()
 
 
@@ -136,7 +146,7 @@ def replace_files(path):
         os.rename(os.path.join(path, 'w_mod.json'), os.path.join(path, 'w_mod_ORIG.json'))
     except FileExistsError:
         sg.popup_ok('Files "weapon_ORIG.json" and "w_mod_ORIG.json" already exists in game folder. '
-                    'They will not be chaged', title='Warning')
+                    'They will not be changed', title='Warning')
     except:
         pass
 
@@ -144,7 +154,7 @@ def replace_files(path):
         shutil.copyfile('weapon.json', os.path.join(path, 'weapon.json'))
         shutil.copyfile('w_mod.json', os.path.join(path, 'w_mod.json'))
     except:
-        sg.popup_ok(err_msg + path, title='Somethig went wrong.')
+        sg.popup_ok(err_msg + path, title='Something went wrong.')
     else:
         sg.popup_ok(replace_msg, title='Done')
 
@@ -156,8 +166,8 @@ def_text_ru = '''
  - сделать Vintar BC кастомизируемым (при этом происходит замена спрайта оружия т.к. иначе они накладываются друг на друга).
 Вся информация хранится в файлах weapon_real.txt и w_mod_real.txt (они должны находится в одной папке с исполняемым файлом).
 В эту же папку будут помещены файлы JSON с новыми именами (если опция замены файлов включена, то и скопированы в папку с игрой).\n
-При появлении в игре нового ружия и модов можно добавить их в эти txt файлы по принципу 'что поменять' : 'на что поменять'.
-Ковычки и двоеточие обязательны !!! 
+При появлении в игре нового оружия и модов можно добавить их в эти txt файлы по принципу 'что поменять' : 'на что поменять'.
+Кавычки и двоеточие обязательны !!! 
 '''
 
 def_text_eng = '''
@@ -183,19 +193,19 @@ exit_rus = 'Выход'
 exit_eng = 'Exit'
 replace_rus = 'Заменить файлы в  игре'
 replace_eng = 'Change files in game'
-replace_msg = '''You have cheked "Change files in game" option.
+replace_msg = '''You have checked "Change files in game" option.
 Original files will be renamed to "weapon_ORIG.json" and "w_mod_ORIG.json".
 New files will be copied to game directory, no actions needed.
                 Have fun !!!  
 '''
-err_msg = '''Somethig went wrong.
-You have to replace files "weapon.json" and "w_mod.json" menualy.
+err_msg = '''Something went wrong.
+You have to replace files "weapon.json" and "w_mod.json" manually.
 Files with new names are in THIS program folder.\n
 Your Zero Sievert folder is: 
 '''
 
 layout = [
-    [sg.StatusBar('StatusBar : No info', k='-STAT_BAR-')],
+    [sg.StatusBar('StatusBar : No info' + ' ' * 95, k='-STAT_BAR-')], # Необходимо заполнить для правильного отображения
     [sg.Column([[sg.Checkbox(rename_eng, default=True, k='-RENAME_CB-')],
                 [sg.Checkbox(all_vintar_eng, k='-ALLMODSVINTAR_CB-')],
                 [sg.HorizontalSeparator()],
